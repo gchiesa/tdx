@@ -9,12 +9,60 @@ import (
 
 	"github.com/niklas-heer/tdx/internal/cmd"
 	"github.com/niklas-heer/tdx/internal/config" // Still needed for recent files
+	"github.com/niklas-heer/tdx/internal/markdown"
 	"github.com/niklas-heer/tdx/internal/tui"
+	"github.com/niklas-heer/tdx/internal/versioning"
 )
 
+// versionStore is the single shared versioning store for all markdown files.
+var versionStore *versioning.Store
+
+// openVersionStore opens the shared versions.sqlite database.
+// Errors are silently swallowed so versioning never blocks normal operation.
+func openVersionStore(maxVersions int) {
+	s, err := versioning.Open(maxVersions)
+	if err != nil {
+		return
+	}
+	versionStore = s
+}
+
+// closeVersionStore prunes all tracked files then closes the store.
+func closeVersionStore() {
+	if versionStore == nil {
+		return
+	}
+	versionStore.PruneAll(versionStore.MaxVersions)
+	_ = versionStore.Close()
+}
+
+// registerVersioningHooks wires the single shared store into the markdown package hooks.
+func registerVersioningHooks() {
+	markdown.WriteHook = func(filePath, content string) {
+		if versionStore == nil {
+			return
+		}
+		_ = versionStore.SaveVersion(filePath, content)
+		_ = versionStore.Prune(filePath, versionStore.MaxVersions)
+	}
+	markdown.ReadHook = func(filePath, content string) {
+		if versionStore == nil {
+			return
+		}
+		_ = versionStore.SaveVersion(filePath, content)
+		_ = versionStore.Prune(filePath, versionStore.MaxVersions)
+	}
+}
+
 func main() {
+	registerVersioningHooks()
+
 	// Load user config
 	appConfig := LoadConfig()
+
+	// Open the shared versioning store with the configured retention limit.
+	openVersionStore(appConfig.Versioning.MaxVersions)
+	defer closeVersionStore()
 	styles := NewStyles(appConfig)
 
 	// Inject config and styles into packages
