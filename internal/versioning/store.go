@@ -9,11 +9,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/niklas-heer/tdx/internal/config"
 	_ "modernc.org/sqlite"
 )
+
+// VersionInfo holds metadata for a single stored version of a file.
+type VersionInfo struct {
+	ID        int64
+	CreatedAt time.Time
+}
 
 // zstdEncoder and zstdDecoder are package-level singletons initialised once.
 // Using EncodeAll/DecodeAll for in-memory compression avoids per-call setup overhead.
@@ -217,8 +224,54 @@ func (s *Store) PruneAll(maxVersions int) {
 	}
 }
 
-// Close closes the underlying database connection.
+// ListVersions returns the version history for filePath ordered most-recent-first.
+// Returns an empty slice (not an error) if no versions exist for the file.
+func (s *Store) ListVersions(filePath string) ([]VersionInfo, error) {
+	fileID, err := s.resolveFileID(filePath)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(
+		`SELECT id, created_at FROM file_versions WHERE file_id = ? ORDER BY id DESC`,
+		fileID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("versioning: list versions: %w", err)
+	}
+	defer rows.Close()
+	var versions []VersionInfo
+	for rows.Next() {
+		var v VersionInfo
+		var createdAt string
+		if err := rows.Scan(&v.ID, &createdAt); err != nil {
+			return nil, fmt.Errorf("versioning: list versions scan: %w", err)
+		}
+		// modernc.org/sqlite returns CURRENT_TIMESTAMP as RFC3339 ("2006-01-02T15:04:05Z").
+		// Try that first, then the classic SQLite space-separated format as a fallback.
+		for _, layout := range []string{time.RFC3339, "2006-01-02 15:04:05"} {
+			if t, err := time.Parse(layout, createdAt); err == nil {
+				v.CreatedAt = t
+				break
+			}
+		}
+		versions = append(versions, v)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("versioning: list versions rows: %w", err)
+	}
+	if versions == nil {
+		versions = []VersionInfo{}
+	}
+	return versions, nil
+}
+
+// Close checkpoints the WAL back into the main database file, then closes the
+// connection. Without an explicit checkpoint, SQLite leaves the .wal and .shm
+// files on disk even after the last connection is closed.
 func (s *Store) Close() error {
+	// TRUNCATE mode writes all WAL frames to the database and truncates the WAL
+	// file to zero bytes, leaving a clean single-file state on exit.
+	_, _ = s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 	return s.db.Close()
 }
 

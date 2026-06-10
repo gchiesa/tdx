@@ -335,6 +335,72 @@ func TestSaveVersion_DeduplicationWithCompression(t *testing.T) {
 	}
 }
 
+// --- ListVersions ---
+
+func TestListVersions_ReturnsMostRecentFirst(t *testing.T) {
+	dir := t.TempDir()
+	SetStoreDirForTesting(dir)
+	defer ResetStoreDirForTesting()
+
+	s := openStore(t)
+	const filePath = "/a/todo.md"
+
+	_ = s.SaveVersion(filePath, "version one content")
+	_ = s.SaveVersion(filePath, "version two content")
+	_ = s.SaveVersion(filePath, "version three content")
+
+	versions, err := s.ListVersions(filePath)
+	if err != nil {
+		t.Fatalf("ListVersions() error: %v", err)
+	}
+	if len(versions) != 3 {
+		t.Fatalf("expected 3 versions, got %d", len(versions))
+	}
+	// Most recent first: IDs should be descending.
+	if versions[0].ID <= versions[1].ID || versions[1].ID <= versions[2].ID {
+		t.Errorf("expected descending IDs, got %v, %v, %v",
+			versions[0].ID, versions[1].ID, versions[2].ID)
+	}
+}
+
+func TestListVersions_EmptyForUnknownFile(t *testing.T) {
+	dir := t.TempDir()
+	SetStoreDirForTesting(dir)
+	defer ResetStoreDirForTesting()
+
+	s := openStore(t)
+
+	versions, err := s.ListVersions("/no/such/file.md")
+	if err != nil {
+		t.Fatalf("ListVersions() unexpected error: %v", err)
+	}
+	if len(versions) != 0 {
+		t.Errorf("expected empty slice, got %d versions", len(versions))
+	}
+}
+
+func TestListVersions_CreatedAtIsNonZero(t *testing.T) {
+	dir := t.TempDir()
+	SetStoreDirForTesting(dir)
+	defer ResetStoreDirForTesting()
+
+	s := openStore(t)
+	if err := s.SaveVersion("/a/todo.md", "content"); err != nil {
+		t.Fatalf("SaveVersion: %v", err)
+	}
+
+	versions, err := s.ListVersions("/a/todo.md")
+	if err != nil {
+		t.Fatalf("ListVersions() error: %v", err)
+	}
+	if len(versions) == 0 {
+		t.Fatal("expected at least one version")
+	}
+	if versions[0].CreatedAt.IsZero() {
+		t.Error("CreatedAt is zero; datetime parse failed — check the format returned by the SQLite driver")
+	}
+}
+
 // --- Test isolation ---
 
 func TestSetStoreDirForTesting_Isolation(t *testing.T) {

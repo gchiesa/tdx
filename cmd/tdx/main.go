@@ -17,21 +17,18 @@ import (
 // versionStore is the single shared versioning store for all markdown files.
 var versionStore *versioning.Store
 
-// openVersionStore opens the shared versions.sqlite database.
-// Errors are silently swallowed so versioning never blocks normal operation.
-func openVersionStore(maxVersions int) {
+// openVersionStore opens the shared versions.sqlite database and returns an error on failure.
+func openVersionStore(maxVersions int) error {
 	s, err := versioning.Open(maxVersions)
 	if err != nil {
-		return
+		return err
 	}
 	versionStore = s
+	return nil
 }
 
 // closeVersionStore prunes all tracked files then closes the store.
 func closeVersionStore() {
-	if versionStore == nil {
-		return
-	}
 	versionStore.PruneAll(versionStore.MaxVersions)
 	_ = versionStore.Close()
 }
@@ -39,16 +36,10 @@ func closeVersionStore() {
 // registerVersioningHooks wires the single shared store into the markdown package hooks.
 func registerVersioningHooks() {
 	markdown.WriteHook = func(filePath, content string) {
-		if versionStore == nil {
-			return
-		}
 		_ = versionStore.SaveVersion(filePath, content)
 		_ = versionStore.Prune(filePath, versionStore.MaxVersions)
 	}
 	markdown.ReadHook = func(filePath, content string) {
-		if versionStore == nil {
-			return
-		}
 		_ = versionStore.SaveVersion(filePath, content)
 		_ = versionStore.Prune(filePath, versionStore.MaxVersions)
 	}
@@ -61,7 +52,10 @@ func main() {
 	appConfig := LoadConfig()
 
 	// Open the shared versioning store with the configured retention limit.
-	openVersionStore(appConfig.Versioning.MaxVersions)
+	if err := openVersionStore(appConfig.Versioning.MaxVersions); err != nil {
+		fmt.Fprintf(os.Stderr, "tdx: failed to open version store: %v\n", err)
+		os.Exit(1)
+	}
 	defer closeVersionStore()
 	styles := NewStyles(appConfig)
 
@@ -82,6 +76,22 @@ func main() {
 	tui.Config.Defaults.FilterDone = appConfig.Defaults.FilterDone
 	tui.Config.Defaults.ShowHeadings = appConfig.Defaults.ShowHeadings
 	tui.Config.Defaults.ReadOnly = appConfig.Defaults.ReadOnly
+
+	// Wire versioning functions into the TUI config.
+	tui.Config.ListVersionsFunc = func(filePath string) ([]tui.VersionInfo, error) {
+		vs, err := versionStore.ListVersions(filePath)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]tui.VersionInfo, len(vs))
+		for i, v := range vs {
+			out[i] = tui.VersionInfo{ID: v.ID, CreatedAt: v.CreatedAt}
+		}
+		return out, nil
+	}
+	tui.Config.ReadVersionFunc = func(filePath string, id int64) (string, error) {
+		return versionStore.ReadVersion(filePath, id)
+	}
 
 	tui.StyleFuncs = &tui.StyleFuncsType{
 		Magenta:        func(s string) string { return styles.Important.Render(s) },
