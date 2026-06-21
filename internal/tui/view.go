@@ -1173,6 +1173,13 @@ func (m Model) renderPriorityFilterOverlayCompact() string {
 // that chunk, inserting spurious trailing spaces that corrupt alignment.
 func renderDiff(diffs []diffmatchpatch.Diff, styles *StyleFuncsType) string {
 	var b strings.Builder
+	diffStyle := map[string]lipgloss.Style{
+		"insert": lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00FF00")),
+		"delete": lipgloss.NewStyle().
+			Foreground(lipgloss.Color("9")).
+			Strikethrough(true).StrikethroughSpaces(true).Faint(true),
+	}
 	for _, d := range diffs {
 		parts := strings.Split(d.Text, "\n")
 		for i, part := range parts {
@@ -1181,9 +1188,9 @@ func renderDiff(diffs []diffmatchpatch.Diff, styles *StyleFuncsType) string {
 			}
 			switch d.Type {
 			case diffmatchpatch.DiffInsert:
-				b.WriteString(styles.Green(part))
+				b.WriteString(diffStyle["insert"].Render(part))
 			case diffmatchpatch.DiffDelete:
-				b.WriteString(styles.Magenta(part))
+				b.WriteString(diffStyle["delete"].Render(part))
 			case diffmatchpatch.DiffEqual:
 				b.WriteString(styles.Dim(part))
 			}
@@ -1269,6 +1276,7 @@ func (m Model) renderVersionsBrowser() string {
 			}
 		}
 		dmp := diffmatchpatch.New()
+		dmp.MatchDistance = 120 // sane default to match entire lines that are deleted without creating character-based diff
 		diffs := dmp.DiffMain(currentContent, versionContent, false)
 		dmp.DiffCleanupSemantic(diffs)
 		rightContent = renderDiff(diffs, styles)
