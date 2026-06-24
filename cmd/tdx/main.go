@@ -35,13 +35,15 @@ func closeVersionStore() {
 
 // registerVersioningHooks wires the single shared store into the markdown package hooks.
 func registerVersioningHooks() {
-	markdown.WriteHook = func(filePath, content string) {
-		_ = versionStore.SaveVersion(filePath, content)
+	markdown.WriteHook = func(filePath, content string) (err error) {
+		err = versionStore.SaveVersion(filePath, content)
 		_ = versionStore.Prune(filePath, versionStore.MaxVersions)
+		return err
 	}
-	markdown.ReadHook = func(filePath, content string) {
-		_ = versionStore.SaveVersion(filePath, content)
+	markdown.ReadHook = func(filePath, content string) (err error) {
+		err = versionStore.SaveVersion(filePath, content)
 		_ = versionStore.Prune(filePath, versionStore.MaxVersions)
+		return err
 	}
 }
 

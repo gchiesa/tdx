@@ -12,9 +12,10 @@ func TestWriteHook_CalledAfterSuccessfulWrite(t *testing.T) {
 	defer func() { WriteHook = original }()
 
 	var gotPath, gotContent string
-	WriteHook = func(filePath, content string) {
+	WriteHook = func(filePath, content string) error {
 		gotPath = filePath
 		gotContent = content
+		return nil
 	}
 
 	dir := t.TempDir()
@@ -56,9 +57,10 @@ func TestReadHook_CalledAfterSuccessfulRead(t *testing.T) {
 	defer func() { ReadHook = original }()
 
 	var gotPath, gotContent string
-	ReadHook = func(filePath, content string) {
+	ReadHook = func(filePath, content string) error {
 		gotPath = filePath
 		gotContent = content
+		return nil
 	}
 
 	dir := t.TempDir()
@@ -86,8 +88,9 @@ func TestReadHook_NotCalledForNewFile(t *testing.T) {
 	defer func() { ReadHook = original }()
 
 	called := false
-	ReadHook = func(filePath, content string) {
+	ReadHook = func(filePath, content string) error {
 		called = true
+		return nil
 	}
 
 	dir := t.TempDir()

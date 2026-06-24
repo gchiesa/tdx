@@ -11,12 +11,12 @@ import (
 // WriteHook, if non-nil, is called after every successful WriteFileUnchecked.
 // It receives the file path and the serialised content that was written.
 // Set this at startup to enable versioning or other post-write side-effects.
-var WriteHook func(filePath, content string)
+var WriteHook func(filePath, content string) error
 
 // ReadHook, if non-nil, is called after every successful ReadFile that loads
 // an existing file from disk (not for newly-created placeholder files).
 // It receives the file path and the raw file content that was read.
-var ReadHook func(filePath, content string)
+var ReadHook func(filePath, content string) error
 
 // Todo represents a single todo item
 type Todo struct {
@@ -81,7 +81,7 @@ func ReadFile(filePath string) (*FileModel, error) {
 	fm.Metadata = metadata
 
 	if ReadHook != nil {
-		ReadHook(filePath, string(content))
+		return fm, ReadHook(filePath, string(content))
 	}
 
 	return fm, nil
@@ -149,7 +149,7 @@ func WriteFileUnchecked(filePath string, fm *FileModel) error {
 	}
 
 	if WriteHook != nil {
-		WriteHook(filePath, content)
+		return WriteHook(filePath, content)
 	}
 
 	return nil

@@ -233,7 +233,7 @@ func DefaultConfig() *UserConfig {
 			MaxFiles: 20, // default max recent files
 		},
 		Versioning: VersioningConfig{
-			MaxVersions: 100, // default max versions per file
+			MaxVersions: 20, // default max versions per file
 		},
 	}
 }
@@ -349,6 +349,9 @@ func LoadConfig() *UserConfig {
 		if versioningRaw, ok := rawConfig["versioning"].(map[string]interface{}); ok {
 			if _, set := versioningRaw["max_versions"]; !set {
 				config.Versioning.MaxVersions = defaults.Versioning.MaxVersions
+			}
+			if config.Versioning.MaxVersions < 0 {
+				config.Versioning.MaxVersions = 0
 			}
 		} else {
 			config.Versioning = defaults.Versioning
