@@ -1814,12 +1814,8 @@ func (m Model) restoreSelectedVersion() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Parse and write the historic content.
-	parsedFM := markdown.ParseMarkdown(content)
-	parsedFM.FilePath = m.FilePath
-	parsedFM.ModTime = m.FileModel.ModTime
-
-	if err := markdown.WriteFileUnchecked(m.FilePath, parsedFM); err != nil {
+	// Restore the captured bytes exactly; parsing and serialization can normalize Markdown.
+	if err := markdown.WriteContentUnchecked(m.FilePath, content); err != nil {
 		m.Err = err
 		m.VersionsMode = false
 		m.VersionsConfirmMode = false

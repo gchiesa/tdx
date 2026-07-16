@@ -1243,7 +1243,13 @@ func (m Model) renderVersionsBrowser() string {
 	if len(m.VersionsList) == 0 {
 		leftLines = append(leftLines, styles.Dim("(no versions)"))
 	} else {
-		for i, v := range m.VersionsList {
+		listStart := 0
+		if m.VersionsCursor >= contentRows {
+			listStart = m.VersionsCursor - contentRows + 1
+		}
+		listEnd := min(listStart+contentRows, len(m.VersionsList))
+		for i := listStart; i < listEnd; i++ {
+			v := m.VersionsList[i]
 			row := fmt.Sprintf("%s - #%03d", v.CreatedAt.Format("2006-01-02 15:04"), v.ID)
 			if len(row) > leftWidth {
 				row = row[:leftWidth]

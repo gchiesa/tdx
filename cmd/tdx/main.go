@@ -47,18 +47,38 @@ func registerVersioningHooks() {
 	}
 }
 
-func main() {
-	registerVersioningHooks()
+func wireVersioningTUI() {
+	tui.Config.ListVersionsFunc = func(filePath string) ([]tui.VersionInfo, error) {
+		versions, err := versionStore.ListVersions(filePath)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]tui.VersionInfo, len(versions))
+		for i, version := range versions {
+			out[i] = tui.VersionInfo{ID: version.ID, CreatedAt: version.CreatedAt}
+		}
+		return out, nil
+	}
+	tui.Config.ReadVersionFunc = func(filePath string, id int64) (string, error) {
+		return versionStore.ReadVersion(filePath, id)
+	}
+}
 
+func commandUsesVersioning(command string, args []string) bool {
+	switch command {
+	case "", "list", "add", "toggle", "edit", "delete", "last":
+		return true
+	case "recent":
+		return len(args) > 0 && args[0] != "clear"
+	default:
+		return false
+	}
+}
+
+func main() {
 	// Load user config
 	appConfig := LoadConfig()
 
-	// Open the shared versioning store with the configured retention limit.
-	if err := openVersionStore(appConfig.Versioning.MaxVersions); err != nil {
-		fmt.Fprintf(os.Stderr, "tdx: failed to open version store: %v\n", err)
-		os.Exit(1)
-	}
-	defer closeVersionStore()
 	styles := NewStyles(appConfig)
 
 	// Inject config and styles into packages
@@ -78,22 +98,6 @@ func main() {
 	tui.Config.Defaults.FilterDone = appConfig.Defaults.FilterDone
 	tui.Config.Defaults.ShowHeadings = appConfig.Defaults.ShowHeadings
 	tui.Config.Defaults.ReadOnly = appConfig.Defaults.ReadOnly
-
-	// Wire versioning functions into the TUI config.
-	tui.Config.ListVersionsFunc = func(filePath string) ([]tui.VersionInfo, error) {
-		vs, err := versionStore.ListVersions(filePath)
-		if err != nil {
-			return nil, err
-		}
-		out := make([]tui.VersionInfo, len(vs))
-		for i, v := range vs {
-			out[i] = tui.VersionInfo{ID: v.ID, CreatedAt: v.CreatedAt}
-		}
-		return out, nil
-	}
-	tui.Config.ReadVersionFunc = func(filePath string, id int64) (string, error) {
-		return versionStore.ReadVersion(filePath, id)
-	}
 
 	tui.StyleFuncs = &tui.StyleFuncsType{
 		Magenta:        func(s string) string { return styles.Important.Render(s) },
@@ -198,6 +202,16 @@ func main() {
 
 	// Resolve file path (expand ~ and make absolute)
 	filePath = resolveFilePath(filePath)
+
+	if commandUsesVersioning(command, cmdArgs) {
+		if err := openVersionStore(appConfig.Versioning.MaxVersions); err != nil {
+			fmt.Fprintf(os.Stderr, "tdx: failed to open version store: %v\n", err)
+			os.Exit(1)
+		}
+		defer closeVersionStore()
+		registerVersioningHooks()
+		wireVersioningTUI()
+	}
 
 	// Handle commands
 	switch command {

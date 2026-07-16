@@ -52,6 +52,34 @@ func TestWriteHook_NilHookIsNoOp(t *testing.T) {
 	}
 }
 
+func TestWriteContentUnchecked_PreservesExactContent(t *testing.T) {
+	original := WriteHook
+	defer func() { WriteHook = original }()
+
+	var hookedContent string
+	WriteHook = func(_ string, content string) error {
+		hookedContent = content
+		return nil
+	}
+
+	mdPath := filepath.Join(t.TempDir(), "todo.md")
+	content := "---\nfilter-done: true\n---\n\nplain text\n\n- [ ] task\n"
+	if err := WriteContentUnchecked(mdPath, content); err != nil {
+		t.Fatalf("WriteContentUnchecked() error: %v", err)
+	}
+
+	written, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile() error: %v", err)
+	}
+	if string(written) != content {
+		t.Fatalf("written content = %q, want %q", written, content)
+	}
+	if hookedContent != content {
+		t.Fatalf("WriteHook content = %q, want %q", hookedContent, content)
+	}
+}
+
 func TestReadHook_CalledAfterSuccessfulRead(t *testing.T) {
 	original := ReadHook
 	defer func() { ReadHook = original }()

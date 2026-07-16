@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -159,5 +162,50 @@ func TestRenderDiff_NoSpuriousPaddingOnMultiLineSegments(t *testing.T) {
 	// "short" (5 chars) must NOT be padded to "long line here" width (14 chars).
 	if lines[1] != "shortx" {
 		t.Errorf("line[1] = %q; want %q (spurious padding detected)", lines[1], "shortx")
+	}
+}
+
+func TestRestoreSelectedVersion_PreservesSnapshotBytes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "todo.md")
+	snapshot := "---\nfilter-done: true\n---\n\nplain text\n\n- [ ] task\n"
+	cfg := testConfig()
+	cfg.ReadVersionFunc = func(string, int64) (string, error) {
+		return snapshot, nil
+	}
+
+	m := New(path, markdown.ParseMarkdown("# Current\n\n- [ ] current\n"), false, false, -1, cfg, testStyles(), "test")
+	m.VersionsMode = true
+	m.VersionsConfirmMode = true
+	m.VersionsList = []VersionInfo{{ID: 1}}
+
+	result, _ := m.restoreSelectedVersion()
+	restored := result.(Model)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile() error: %v", err)
+	}
+	if string(content) != snapshot {
+		t.Fatalf("restored content = %q, want %q", content, snapshot)
+	}
+	if restored.FileModel.Metadata.FilterDone == nil || !*restored.FileModel.Metadata.FilterDone {
+		t.Fatal("restored frontmatter was not reloaded into the model")
+	}
+}
+
+func TestRenderVersionsBrowser_KeepsCursorVisible(t *testing.T) {
+	m := testVersionModel()
+	m.TermHeight = 20
+	m.VersionsList = make([]VersionInfo, 30)
+	for i := range m.VersionsList {
+		m.VersionsList[i] = VersionInfo{
+			ID:        int64(i + 1),
+			CreatedAt: time.Date(2026, 1, i+1, 10, 0, 0, 0, time.UTC),
+		}
+	}
+	m.VersionsCursor = 20
+
+	rendered := m.renderVersionsBrowser()
+	if !strings.Contains(rendered, fmt.Sprintf("#%03d", m.VersionsList[m.VersionsCursor].ID)) {
+		t.Fatal("selected version is outside the rendered list viewport")
 	}
 }

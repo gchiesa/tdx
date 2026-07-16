@@ -129,30 +129,44 @@ func WriteFile(filePath string, fm *FileModel) error {
 // Use this when you've already checked for conflicts and handled them
 func WriteFileUnchecked(filePath string, fm *FileModel) error {
 	content := SerializeMarkdown(fm)
+	modTime, err := writeContentUnchecked(filePath, content)
+	if !modTime.IsZero() {
+		fm.ModTime = modTime
+	}
+	return err
+}
 
+// WriteContentUnchecked writes content byte-for-byte without parsing or serializing it.
+// It is intended for restoring a previously captured file snapshot.
+func WriteContentUnchecked(filePath, content string) error {
+	_, err := writeContentUnchecked(filePath, content)
+	return err
+}
+
+func writeContentUnchecked(filePath, content string) (time.Time, error) {
 	// Atomic write: temp file + rename
 	dir := filepath.Dir(filePath)
 	tmpFile := filepath.Join(dir, fmt.Sprintf(".tmp.%d", os.Getpid()))
 
 	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
-		return err
+		return time.Time{}, err
 	}
 
 	if err := os.Rename(tmpFile, filePath); err != nil {
-		return err
+		return time.Time{}, err
 	}
 
-	// Update modification time after successful write.
+	var modTime time.Time
 	fileInfo, err := os.Stat(filePath)
 	if err == nil {
-		fm.ModTime = fileInfo.ModTime()
+		modTime = fileInfo.ModTime()
 	}
 
 	if WriteHook != nil {
-		return WriteHook(filePath, content)
+		return modTime, WriteHook(filePath, content)
 	}
 
-	return nil
+	return modTime, nil
 }
 
 // ParseMarkdown parses markdown content into a FileModel with AST backend

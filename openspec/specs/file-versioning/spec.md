@@ -1,7 +1,7 @@
 # file-versioning Specification
 
 ## Purpose
-TBD - created by archiving change add-file-versioning. Update Purpose after archive.
+Provide automatic, compressed snapshots of markdown files so users can recover earlier content.
 ## Requirements
 ### Requirement: SQLite-backed version store
 
@@ -51,8 +51,9 @@ tdx in a **single shared** SQLite database located in the tdx config directory (
 - The `Store` SHALL cache the `filePath → file_id` mapping in a `map[string]int64` to avoid
   repeated DB lookups within the same process session.
 - `versioning.DBPath() (string, error)` SHALL return `filepath.Join(getStoreDir(), "versions.sqlite")`.
-- `cmd/tdx/main.go` SHALL maintain a **single** `*versioning.Store` (not a per-file map), opened
-  once at startup with `defer store.Close()`.
+- For commands that access a markdown file, `cmd/tdx/main.go` SHALL maintain a **single**
+  `*versioning.Store` (not a per-file map), opened once before file access with
+  `defer store.Close()`.
 
 #### Scenario: New version saved on first write
 
@@ -79,6 +80,12 @@ tdx in a **single shared** SQLite database located in the tdx config directory (
 - **AND** a version save is triggered
 - **THEN** the config directory SHALL be created and `versions.sqlite` SHALL be initialised without error
 
+#### Scenario: Informational commands do not open the store
+
+- **WHEN** the user runs an informational command such as `--version` or `help`
+- **THEN** tdx SHALL NOT create or open `versions.sqlite`
+- **AND** the command SHALL work when the config directory is not writable
+
 ---
 
 ### Requirement: Automatic version capture on file write
@@ -87,11 +94,11 @@ The system SHALL save a version automatically every time a markdown file is writ
 `markdown.WriteFileUnchecked`, regardless of whether the write was triggered by the TUI or a CLI
 command.
 
-- A package-level hook `markdown.WriteHook func(filePath, content string)` SHALL be called at the end
-  of `WriteFileUnchecked` after a successful rename.
+- A package-level hook `markdown.WriteHook func(filePath, content string) error` SHALL be called at
+  the end of `WriteFileUnchecked` after a successful rename.
 - When `WriteHook` is non-nil, it SHALL receive the file path and the serialised content string.
-- `cmd/tdx/main.go` SHALL register the versioning store's save function into `markdown.WriteHook` at
-  startup.
+- `cmd/tdx/main.go` SHALL register the versioning store's save function into `markdown.WriteHook`
+  before accessing a markdown file.
 
 #### Scenario: TUI action triggers version capture
 
@@ -113,8 +120,8 @@ command.
 The system SHALL detect when a markdown file was modified outside of tdx and create a version for the
 externally-modified content when the file is next opened.
 
-- `markdown.ReadFile` SHALL call a package-level hook `markdown.ReadHook func(filePath, content string)`
-  after successfully reading the file content.
+- `markdown.ReadFile` SHALL call a package-level hook
+  `markdown.ReadHook func(filePath, content string) error` after successfully reading the file content.
 - The versioning implementation of `ReadHook` SHALL compute the SHA-256 of the content and insert a row
   only if the hash is not already present in the store for that file.
 
@@ -264,4 +271,3 @@ enabling consumers (such as the TUI) to display and browse stored snapshots.
 
 - **WHEN** `Store.ListVersions` is called for a file path that has no saved versions
 - **THEN** it SHALL return an empty slice and a nil error
-

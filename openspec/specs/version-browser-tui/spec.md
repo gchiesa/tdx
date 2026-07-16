@@ -1,7 +1,7 @@
 # version-browser-tui Specification
 
 ## Purpose
-TBD - created by archiving change add-version-browser-tui. Update Purpose after archive.
+Provide an interactive TUI for browsing, comparing, and restoring captured file versions.
 ## Requirements
 ### Requirement: Versioning function injection into ConfigType
 
@@ -179,8 +179,8 @@ confirming the action.
 - In confirmation mode:
   - Pressing `y` (or `Y`) SHALL:
     1. Call `tui.Config.ReadVersionFunc(m.FilePath, selectedVersion.ID)` to get the historic content.
-    2. Write it to disk via `markdown.WriteFileUnchecked(m.FilePath, parsedFM)` where `parsedFM`
-       is the result of `markdown.ParseMarkdown(content)` with `FilePath` and `ModTime` set.
+    2. Write it byte-for-byte via `markdown.WriteContentUnchecked(m.FilePath, content)` so
+       frontmatter and formatting are preserved exactly.
     3. Reload `m.FileModel` from the written file via `markdown.ReadFile(m.FilePath)`.
     4. Set `m.VersionsMode = false`, `m.VersionsConfirmMode = false`.
   - Pressing `n`, `N`, or `Esc` SHALL set `VersionsConfirmMode = false` (return to list).
@@ -199,4 +199,3 @@ confirming the action.
 - **AND** then presses `Esc` or `n`
 - **THEN** `VersionsConfirmMode` SHALL be `false`
 - **AND** `VersionsMode` SHALL remain `true`
-
