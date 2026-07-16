@@ -167,7 +167,7 @@ func TestRenderDiff_NoSpuriousPaddingOnMultiLineSegments(t *testing.T) {
 
 func TestRestoreSelectedVersion_PreservesSnapshotBytes(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "todo.md")
-	snapshot := "---\nfilter-done: true\n---\n\nplain text\n\n- [ ] task\n"
+	snapshot := "---\nfilter-done: true\nword-wrap: false\nshow-headings: true\nread-only: true\nmax-visible: 7\n---\n\nplain text\n\n- [ ] task\n"
 	cfg := testConfig()
 	cfg.ReadVersionFunc = func(string, int64) (string, error) {
 		return snapshot, nil
@@ -189,6 +189,12 @@ func TestRestoreSelectedVersion_PreservesSnapshotBytes(t *testing.T) {
 	}
 	if restored.FileModel.Metadata.FilterDone == nil || !*restored.FileModel.Metadata.FilterDone {
 		t.Fatal("restored frontmatter was not reloaded into the model")
+	}
+	if !restored.FilterDone || restored.WordWrap || !restored.ShowHeadings || !restored.ReadOnly {
+		t.Fatal("restored frontmatter was not applied to the TUI state")
+	}
+	if restored.MaxVisibleOverride != 7 {
+		t.Fatalf("MaxVisibleOverride = %d, want 7", restored.MaxVisibleOverride)
 	}
 }
 

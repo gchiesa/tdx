@@ -208,15 +208,7 @@ func New(filePath string, fm *markdown.FileModel, readOnly bool, showHeadings bo
 		ThemeSaveFunc:    ThemeSaveFunc,
 	}
 
-	// Apply metadata settings (including FilterDone) from file
-	if fm.Metadata != nil {
-		if fm.Metadata.FilterDone != nil {
-			m.FilterDone = *fm.Metadata.FilterDone
-		}
-		if fm.Metadata.WordWrap != nil {
-			m.WordWrap = *fm.Metadata.WordWrap
-		}
-	}
+	m.applyFileMetadata()
 
 	// Position cursor on first visible item if filters are active
 	if m.hasActiveFilters() || m.ShowHeadings {
@@ -236,6 +228,28 @@ func New(filePath string, fm *markdown.FileModel, readOnly bool, showHeadings bo
 	}
 
 	return m
+}
+
+func (m *Model) applyFileMetadata() {
+	metadata := m.FileModel.Metadata
+	if metadata == nil {
+		return
+	}
+	if metadata.FilterDone != nil {
+		m.FilterDone = *metadata.FilterDone
+	}
+	if metadata.WordWrap != nil {
+		m.WordWrap = *metadata.WordWrap
+	}
+	if metadata.ShowHeadings != nil {
+		m.ShowHeadings = *metadata.ShowHeadings
+	}
+	if metadata.ReadOnly != nil {
+		m.ReadOnly = *metadata.ReadOnly
+	}
+	if metadata.MaxVisible != nil {
+		m.MaxVisibleOverride = *metadata.MaxVisible
+	}
 }
 
 // Config returns the model's configuration (for backward compatibility during transition)

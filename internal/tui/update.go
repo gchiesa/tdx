@@ -1828,7 +1828,9 @@ func (m Model) restoreSelectedVersion() (tea.Model, tea.Cmd) {
 		m.Err = err
 	} else {
 		m.FileModel = *reloaded
+		m.applyFileMetadata()
 		m.InvalidateHeadingsCache()
+		m.InvalidateDocumentTree()
 	}
 
 	m.VersionsMode = false

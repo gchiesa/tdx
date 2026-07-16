@@ -226,7 +226,7 @@ func (s *Store) PruneAll(maxVersions int) {
 
 // ListVersions returns the version history for filePath ordered most-recent-first.
 // Returns an empty slice (not an error) if no versions exist for the file.
-func (s *Store) ListVersions(filePath string) ([]VersionInfo, error) {
+func (s *Store) ListVersions(filePath string) (versions []VersionInfo, err error) {
 	fileID, err := s.resolveFileID(filePath)
 	if err != nil {
 		return nil, err
@@ -238,8 +238,11 @@ func (s *Store) ListVersions(filePath string) ([]VersionInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("versioning: list versions: %w", err)
 	}
-	defer rows.Close()
-	var versions []VersionInfo
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("versioning: close version rows: %w", closeErr)
+		}
+	}()
 	for rows.Next() {
 		var v VersionInfo
 		var createdAt string
@@ -262,7 +265,7 @@ func (s *Store) ListVersions(filePath string) ([]VersionInfo, error) {
 	if versions == nil {
 		versions = []VersionInfo{}
 	}
-	return versions, nil
+	return versions, err
 }
 
 // Close checkpoints the WAL back into the main database file, then closes the

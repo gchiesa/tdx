@@ -179,7 +179,8 @@ confirming the action.
     2. Write it byte-for-byte via `markdown.WriteContentUnchecked(m.FilePath, content)` so
        frontmatter and formatting are preserved exactly.
     3. Reload `m.FileModel` from the written file via `markdown.ReadFile(m.FilePath)`.
-    4. Set `m.VersionsMode = false`, `m.VersionsConfirmMode = false`.
+    4. Apply restored frontmatter settings to the active TUI model.
+    5. Set `m.VersionsMode = false`, `m.VersionsConfirmMode = false`.
   - Pressing `n`, `N`, or `Esc` SHALL set `VersionsConfirmMode = false` (return to list).
 - If `ReadVersionFunc` returns an error, `m.Err` SHALL be set and the modal SHALL close.
 
@@ -188,6 +189,7 @@ confirming the action.
 - **WHEN** the user selects a version and presses `Enter`, then `y`
 - **THEN** the file on disk SHALL contain the historic version's content
 - **AND** `m.FileModel` SHALL reflect the restored content
+- **AND** active TUI settings SHALL reflect the restored frontmatter
 - **AND** `VersionsMode` SHALL be `false`
 
 #### Scenario: Cancelling confirmation returns to list

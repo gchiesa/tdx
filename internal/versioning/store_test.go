@@ -412,7 +412,11 @@ func TestSetStoreDirForTesting_Isolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() in dirA: %v", err)
 	}
-	defer sA.Close()
+	t.Cleanup(func() {
+		if err := sA.Close(); err != nil {
+			t.Errorf("close store in dirA: %v", err)
+		}
+	})
 	if want := filepath.Join(dirA, "versions.sqlite"); sA.dbPath != want {
 		t.Errorf("sA.dbPath = %q, want %q", sA.dbPath, want)
 	}
@@ -422,7 +426,11 @@ func TestSetStoreDirForTesting_Isolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() in dirB: %v", err)
 	}
-	defer sB.Close()
+	t.Cleanup(func() {
+		if err := sB.Close(); err != nil {
+			t.Errorf("close store in dirB: %v", err)
+		}
+	})
 	if want := filepath.Join(dirB, "versions.sqlite"); sB.dbPath != want {
 		t.Errorf("sB.dbPath = %q, want %q", sB.dbPath, want)
 	}
